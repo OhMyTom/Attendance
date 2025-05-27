@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="camera-container">
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <div class="controls">
+        <button id="capture" class="btn">拍照</button>
+    </div>
+    <div id="result" class="result"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('capture');
+    const resultDiv = document.getElementById('result');
+
+    // 打开摄像头
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+            video.srcObject = stream;
+        })
+        .catch(err => {
+            resultDiv.textContent = '无法访问摄像头: ' + err.message;
+        });
+
+    // 拍照
+    captureBtn.onclick = function() {
+        const ctx = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+
+        const imageData = canvas.toDataURL('image/jpeg');
+
+        // 发送到服务器
+        fetch('/attendance', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                image: imageData
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultDiv.textContent = `${data.message} - ${data.worker.name}`;
+            } else {
+                resultDiv.textContent = data.message;
+            }
+        })
+        .catch(err => {
+            resultDiv.textContent = '请求失败: ' + err.message;
+        });
+    };
+});
+</script>
+{% endblock %}

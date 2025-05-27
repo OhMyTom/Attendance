@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block title %}考勤记录 - 考勤系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- 左侧摄像头区域 -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">人脸识别考勤</h4>
+                </div>
+                <div class="card-body">
+                    <div class="video-container">
+                        <video id="video" autoplay class="rounded"></video>
+                        <canvas id="canvas"></canvas>
+                    </div>
+                    
+                    <div class="controls mt-4">
+                        <div class="liveness-options card">
+                            <div class="card-body">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="useLiveness">
+                                    <label class="form-check-label" for="useLiveness">
+                                        <i class="fas fa-shield-alt"></i> 启用活体检测
+                                    </label>
+                                </div>
+                                
+                                <div id="livenessTypeOptions" class="mt-3" style="display: none;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="livenessType" id="localLiveness" value="local" checked>
+                                        <label class="form-check-label" for="localLiveness">
+                                            <i class="fas fa-laptop"></i> 本地检测
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="livenessType" id="baiduLiveness" value="baidu">
+                                        <label class="form-check-label" for="baiduLiveness">
+                                            <i class="fas fa-cloud"></i> 百度API检测
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="actionPrompt" class="alert alert-info mt-3" style="display: none;">
+                            <i class="fas fa-info-circle"></i> 请完成以下动作：<span id="actionList" class="fw-bold"></span>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-3">
+                            <button id="startButton" class="btn btn-primary btn-lg">
+                                <i class="fas fa-play"></i> 开始考勤
+                            </button>
+                            <button id="stopButton" class="btn btn-danger btn-lg" style="display: none;">
+                                <i class="fas fa-stop"></i> 停止考勤
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧考勤记录 -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">考勤记录</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>工号</th>
+                                    <th>姓名</th>
+                                    <th>时间</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in records %}
+                                <tr>
+                                    <td>{{ record.worker_id }}</td>
+                                    <td>{{ record.name }}</td>
+                                    <td>{{ record.datetime }}</td>
+                                    <td>
+                                        {% if record.late == "是" %}
+                                        <span class="badge bg-danger">迟到</span>
+                                        {% else %}
+                                        <span class="badge bg-success">正常</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+<style>
+.video-container {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+#video {
+    width: 100%;
+    border-radius: 8px;
+}
+
+#canvas {
+    display: none;
+}
+
+.controls {
+    margin: 20px 0;
+}
+
+.liveness-options {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+}
+
+#actionPrompt {
+    border-radius: 8px;
+    background-color: #e3f2fd;
+    border: 1px solid #90caf9;
+}
+
+.table th {
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+
+.badge {
+    padding: 0.5em 0.8em;
+    font-weight: 500;
+}
+
+.btn {
+    padding: 0.8rem 1.5rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn i {
+    margin-right: 8px;
+}
+
+.card {
+    border: none;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.card-header {
+    border-bottom: none;
+    padding: 1rem 1.5rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f8f9fa;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const startButton = document.getElementById('startButton');
+    const stopButton = document.getElementById('stopButton');
+    const useLiveness = document.getElementById('useLiveness');
+    const livenessTypeOptions = document.getElementById('livenessTypeOptions');
+    const actionPrompt = document.getElementById('actionPrompt');
+    const actionList = document.getElementById('actionList');
+    let stream = null;
+    let isRunning = false;
+
+    // 显示/隐藏活体检测选项
+    useLiveness.addEventListener('change', function() {
+        livenessTypeOptions.style.display = this.checked ? 'block' : 'none';
+        if (this.checked) {
+            getRandomActions();
+        } else {
+            actionPrompt.style.display = 'none';
+        }
+    });
+
+    // 获取随机动作
+    async function getRandomActions() {
+        try {
+            const response = await fetch('/get_actions');
+            const result = await response.json();
+            if (result.success) {
+                const actions = result.actions;
+                const actionTexts = {
+                    'blink': '眨眼',
+                    'mouth': '张嘴',
+                    'head': '摇头'
+                };
+                actionList.textContent = actions.map(action => actionTexts[action]).join('、');
+                actionPrompt.style.display = 'block';
+            }
+        } catch (err) {
+            console.error('Error getting actions:', err);
+        }
+    }
+
+    // 开始考勤
+    startButton.addEventListener('click', async () => {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            startButton.style.display = 'none';
+            stopButton.style.display = 'block';
+            isRunning = true;
+            if (useLiveness.checked) {
+                getRandomActions();
+            }
+            captureFrame();
+        } catch (err) {
+            console.error('Error accessing camera:', err);
+            toastr.error('无法访问摄像头，请确保已授予权限。');
+        }
+    });
+
+    // 停止考勤
+    stopButton.addEventListener('click', () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+            startButton.style.display = 'block';
+            stopButton.style.display = 'none';
+            isRunning = false;
+            actionPrompt.style.display = 'none';
+        }
+    });
+
+    // 捕获帧并发送到服务器
+    async function captureFrame() {
+        if (!isRunning) return;
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        const imageData = canvas.toDataURL('image/jpeg', 0.8); // 降低图片质量
+        
+        try {
+            const response = await fetch('/attendance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image: imageData,
+                    use_liveness: useLiveness.checked,
+                    liveness_type: document.querySelector('input[name="livenessType"]:checked').value
+                })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                Swal.fire({
+                    title: '考勤成功！',
+                    text: result.message,
+                    icon: 'success',
+                    confirmButtonText: '确定'
+                }).then(() => {
+                    location.reload();
+                });
+            } else {
+                if (result.message.includes('请完成动作')) {
+                    actionList.textContent = result.message.replace('请完成动作: ', '');
+                } else {
+                    toastr.error(result.message);
+                }
+            }
+        } catch (err) {
+            console.error('Error sending frame:', err);
+            toastr.error('网络错误，请重试');
+        }
+        
+        setTimeout(captureFrame, 1000);
+    }
+});
+</script>
+{% endblock %}
